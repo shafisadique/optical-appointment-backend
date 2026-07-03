@@ -1,3 +1,6 @@
+const dns = require('node:dns');
+dns.setServers(['8.8.8.8', '1.1.1.1']);
+
 require('dotenv').config();
 
 const express = require('express');
@@ -14,6 +17,8 @@ const serviceRoutes = require('./routes/services');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+console.log(`🚀 Starting server on port ${PORT}...`);
+
 // ====================== SECURITY ======================
 app.use(helmet());
 
@@ -24,15 +29,14 @@ const limiter = rateLimit({
 app.use('/api', limiter);
 
 // ====================== CORS ======================
-// Allow multiple origins from environment variable (comma-separated)
-// e.g., ALLOWED_ORIGINS=http://localhost:4200,https://myapp.vercel.app
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
   : [
       'http://localhost:4400',
       'http://localhost:4200',
       'http://127.0.0.1:4200',
-      'http://localhost:3000',
+      'https://eyeglasses-seven.vercel.app',
+      'https://eyeglasses-seven-git-*.vercel.app'
     ];
 
 app.use(
@@ -45,76 +49,60 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ====================== DATABASE (with caching for serverless) ======================
+// ====================== DATABASE CONNECTION (Fixed for Vercel) ======================
 
 const mongoURI = process.env.MONGODB_URI;
 
 if (!mongoURI) {
-  console.error('❌ MONGODB_URI is missing');
+  console.error('❌ MONGODB_URI is missing in environment variables');
   process.exit(1);
 }
 
-// Global cache for MongoDB connection (reused across serverless invocations)
 let cached = global.mongoose;
 if (!cached) {
   cached = global.mongoose = { conn: null, promise: null };
 }
 
 async function connectDB() {
-  // If connection already exists, return it
   if (cached.conn) {
     console.log('🟢 Using cached MongoDB connection');
     return cached.conn;
   }
 
-  // If no connection promise exists, create one
   if (!cached.promise) {
-    console.log('🟡 Creating new MongoDB connection...');
+    console.log('🟡 Connecting to MongoDB...');
     cached.promise = mongoose
       .connect(mongoURI, {
-        serverSelectionTimeoutMS: 30000,
-        socketTimeoutMS: 60000,
-        connectTimeoutMS: 30000,
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+        connectTimeoutMS: 10000,
         family: 4,
         retryWrites: true,
-        // Recommended for serverless environments:
-        maxPoolSize: 1,
+        maxPoolSize: 5,
+        minPoolSize: 1,
       })
-      .then((mongoose) => {
+      .then((mongooseInstance) => {
         console.log('🟢 MongoDB connected successfully');
-        return mongoose;
+        return mongooseInstance;
       })
       .catch((err) => {
-        console.error('🔴 MongoDB connection error:');
-        console.dir(err, { depth: null });
-        // Clear promise so we can retry on next invocation
+        console.error('🔴 MongoDB connection failed:', err.message);
         cached.promise = null;
         throw err;
       });
   }
 
-  // Wait for the connection to resolve
-  cached.conn = await cached.promise;
-  return cached.conn;
+  try {
+    cached.conn = await cached.promise;
+    return cached.conn;
+  } catch (err) {
+    console.error('❌ Failed to establish MongoDB connection');
+    throw err;
+  }
 }
 
-// Establish the connection when the module loads
-connectDB().catch((err) => {
-  console.error('❌ Failed to connect to MongoDB on startup:', err);
-  // Do not exit the process in serverless – let the function fail gracefully
-});
-
-// Optional: listen to Mongoose events for logging
-mongoose.connection.on('connected', () => {
-  console.log('🟢 Mongoose connected');
-});
-mongoose.connection.on('error', (err) => {
-  console.error('🔴 Mongoose error');
-  console.dir(err, { depth: null });
-});
-mongoose.connection.on('disconnected', () => {
-  console.log('🟡 Mongoose disconnected');
-});
+// Connect on startup
+connectDB().catch(err => console.error('Initial connection failed:', err.message));
 
 // ====================== ROUTES ======================
 
@@ -124,11 +112,15 @@ app.use('/api/availability', availabilityRoutes);
 app.use('/api/services', serviceRoutes);
 
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-  });
+  res.json({ status: 'OK', mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected' });
 });
 
-// ====================== EXPORT FOR VERCEL ======================
+// ====================== START SERVER (Local) ======================
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+}
 
+// ====================== EXPORT FOR VERCEL ======================
 module.exports = app;

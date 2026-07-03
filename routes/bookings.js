@@ -30,7 +30,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create a new booking (public)
-router.post('/', auth,authorize('admin'),async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { date, time, service, patient } = req.body;
 
