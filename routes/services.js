@@ -8,6 +8,7 @@ const auth = require('../middleware/auth');
 // ==========================================
 router.get('/', async (req, res) => {
   try {
+    await dbConnect();   // ← MUST ADD THIS
     const services = await Service.find({ isActive: true }).sort({ name: 1 });
     res.json(services);
   } catch (err) {
