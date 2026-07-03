@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Service = require('../models/Service');
 const auth = require('../middleware/auth');
+const dbConnect = require('../config/database');
 
 // ==========================================
 // PUBLIC: Get all active services
