@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const Visitor = require('../models/Visitor');
-const dbConnect = require('../config/database');   // ← Correct import
+const dbConnect = require('../config/database');
 
 // Record a visit
 router.post('/record', async (req, res) => {
   try {
-    await dbConnect();                    // ← Important
+    await dbConnect();
 
     const today = new Date().toISOString().split('T')[0];
 
@@ -36,7 +36,7 @@ router.post('/record', async (req, res) => {
   }
 });
 
-// Get stats (optional - for admin)
+// Get stats (optional)
 router.get('/stats', async (req, res) => {
   try {
     await dbConnect();

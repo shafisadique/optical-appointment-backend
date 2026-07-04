@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 
-// Import Admin model
+// Import models and db connection
 const Admin = require('../models/Admin');
+const dbConnect = require('../config/database');   // ← ADD THIS
 const auth = require('../middleware/auth');
 
 // ==========================================
@@ -28,6 +29,8 @@ function generateToken(admin) {
 // ==========================================
 router.post('/login', async (req, res) => {
   try {
+    await dbConnect();                    // ← ADD THIS
+
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -87,11 +90,9 @@ router.post('/login', async (req, res) => {
 
   } catch (err) {
     console.error('Login error:', err);
-    console.error('Stack:', err.stack);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: err.message // Remove this in production
+      message: 'Server error'
     });
   }
 });
@@ -101,6 +102,8 @@ router.post('/login', async (req, res) => {
 // ==========================================
 router.post('/demo-login', async (req, res) => {
   try {
+    await dbConnect();                    // ← ADD THIS
+
     const demoEmail = process.env.DEMO_EMAIL || 'demo@eyecare.com';
     console.log('Looking for demo with email:', demoEmail);
 
@@ -115,7 +118,6 @@ router.post('/demo-login', async (req, res) => {
         message: 'Demo account not found. Please run the seed script.'
       });
     }
-
 
     const token = generateToken(demo);
 
@@ -136,11 +138,9 @@ router.post('/demo-login', async (req, res) => {
 
   } catch (err) {
     console.error('Demo login error:', err);
-    console.error('Stack:', err.stack);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: err.message // Remove this in production
+      message: 'Server error'
     });
   }
 });
@@ -150,6 +150,8 @@ router.post('/demo-login', async (req, res) => {
 // ==========================================
 router.get('/me', auth, async (req, res) => {
   try {
+    await dbConnect();                    // ← ADD THIS
+
     const admin = await Admin.findById(req.user.id).select('-password');
 
     if (!admin) {
@@ -174,17 +176,18 @@ router.get('/me', auth, async (req, res) => {
 });
 
 // ==========================================
-// TEST ENDPOINT - Check if model works
+// TEST ENDPOINT
 // ==========================================
 router.get('/test', async (req, res) => {
   try {
+    await dbConnect();                    // ← ADD THIS
+
     const count = await Admin.countDocuments();
     const admins = await Admin.find().select('-password');
     
     res.json({
       success: true,
       modelLoaded: typeof Admin === 'function',
-      findOneExists: typeof Admin.findOne === 'function',
       count: count,
       admins: admins.map(a => ({
         name: a.name,
@@ -196,8 +199,7 @@ router.get('/test', async (req, res) => {
     console.error('Test error:', err);
     res.status(500).json({
       success: false,
-      error: err.message,
-      stack: err.stack
+      error: err.message
     });
   }
 });
