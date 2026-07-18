@@ -7,6 +7,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 
 const dbConnect = require('./config/database');
 
@@ -19,8 +20,10 @@ const visitorRoutes = require('./routes/visitor');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ====================== SECURITY MIDDLEWARE ======================
+// ====================== SECURITY ======================
 app.use(helmet());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -33,15 +36,12 @@ app.use('/api', limiter);
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-  : ['http://localhost:4200', 'http://localhost:4400'];
+  : ['http://localhost:4200', 'https://your-frontend-domain.vercel.app'];
 
 app.use(cors({
   origin: allowedOrigins,
   credentials: true,
 }));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // ====================== ROUTES ======================
 app.use('/api/auth', authRoutes);
@@ -50,23 +50,29 @@ app.use('/api/availability', availabilityRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/visitor', visitorRoutes);
 
-// Health Check
+// Serve PDFs
+app.use('/pdfs', express.static(path.join(__dirname, 'public/pdfs')));
+
+// Health Check (Important for Vercel)
 app.get('/api/health', async (req, res) => {
   try {
     await dbConnect();
-    res.json({ 
-      status: 'OK', 
-      mongodb: 'Connected' 
-    });
+    res.json({ status: 'OK', mongodb: 'Connected' });
   } catch (err) {
-    res.status(500).json({ status: 'Error', mongodb: 'Disconnected' });
+    console.error('Health check failed:', err.message);
+    res.status(500).json({ status: 'Error', mongodb: err.message });
   }
+});
+
+// 404 Handler
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: 'Route not found' });
 });
 
 // ====================== EXPORT FOR VERCEL ======================
 module.exports = app;
 
-// Local Development
+// Only listen in local development
 if (require.main === module) {
   const startServer = async () => {
     try {
