@@ -2,62 +2,71 @@ const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema({
   service: {
-    id: { type: String, required: true },
-    name: { type: String, required: true },
-    description: { type: String },
-    duration: { type: Number, required: true },
-    icon: { type: String },
-    iconClass: { type: String }
+    _id: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true
+    },
+    name: {
+      type: String,
+      required: true
+    }
   },
+
   date: {
     type: Date,
     required: true
   },
-  time: {
-    type: String,
-    required: true
-  },
+
   patient: {
-    name: { type: String, required: true },
-    phone: { type: String, required: true },
-    email: { type: String, required: true },
-    message: { type: String, default: '' }
+    name: {
+      type: String,
+      required: true
+    },
+    phone: {
+      type: String,
+      required: true
+    },
+    email: {
+      type: String,
+      required: true
+    },
+    message: {
+      type: String,
+      default: ''
+    }
   },
+
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'completed', 'cancelled'],
+    enum: [
+      'pending',
+      'confirmed',
+      'completed',
+      'cancelled',
+      'rescheduled'
+    ],
     default: 'pending'
   },
+
   notes: {
     type: String,
     default: ''
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
+
+  adminNotes: {
+    type: String,
+    default: ''
   },
-  cancellationReason: {
-  type: String,
-  default: ''
-},
 
-isDeleted: {
-  type: Boolean,
-  default: false
-},
+  originalDate: Date,
 
-deletedAt: {
-  type: Date,
-  default: null
-},
+  rescheduledAt: Date
 
-adminNotes: {
-  type: String,
-  default: ''
-}
+}, {
+  timestamps: true
 });
 
-// Ensure no duplicate booking for same date & time
-bookingSchema.index({ date: 1, time: 1 }, { unique: true });
+bookingSchema.index({ date: 1 });
+bookingSchema.index({ 'patient.email': 1, date: 1 });
 
 module.exports = mongoose.model('Booking', bookingSchema);

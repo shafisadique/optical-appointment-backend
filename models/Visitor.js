@@ -4,8 +4,7 @@ const visitorSchema = new mongoose.Schema({
   date: { 
     type: String, 
     required: true, 
-    unique: true,     // One entry per day (YYYY-MM-DD)
-    default: () => new Date().toISOString().split('T')[0]
+    unique: true 
   },
   count: { 
     type: Number, 

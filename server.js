@@ -1,4 +1,3 @@
-// server.js
 require('dotenv').config();
 
 const dns = require('node:dns');
@@ -20,32 +19,21 @@ const visitorRoutes = require('./routes/visitor');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-console.log(`🚀 Starting server...`);
-
-app.set('trust proxy', 1);
-
-// ====================== SECURITY ======================
+// ====================== SECURITY MIDDLEWARE ======================
 app.use(helmet());
 
-// Fixed Rate Limiter
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => rateLimit.ipKeyGenerator(req)   // Fixes IPv6 warning
 });
 
 app.use('/api', limiter);
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-  : [
-      'http://localhost:4200',
-      'http://localhost:4400',
-      'https://eyeglasses-seven.vercel.app',
-      'https://optical-appointment-backend.vercel.app'
-    ];
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : ['http://localhost:4200', 'http://localhost:4400'];
 
 app.use(cors({
   origin: allowedOrigins,
@@ -68,10 +56,10 @@ app.get('/api/health', async (req, res) => {
     await dbConnect();
     res.json({ 
       status: 'OK', 
-      mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected' 
+      mongodb: 'Connected' 
     });
   } catch (err) {
-    res.status(500).json({ status: 'Error', mongodb: 'Failed' });
+    res.status(500).json({ status: 'Error', mongodb: 'Disconnected' });
   }
 });
 
@@ -87,7 +75,7 @@ if (require.main === module) {
         console.log(`🚀 Server running on http://localhost:${PORT}`);
       });
     } catch (err) {
-      console.error('Failed to start server:', err);
+      console.error('❌ Failed to start server:', err);
     }
   };
   startServer();

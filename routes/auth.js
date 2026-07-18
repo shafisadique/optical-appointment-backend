@@ -2,14 +2,11 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 
-// Import models and db connection
 const Admin = require('../models/Admin');
-const dbConnect = require('../config/database');   // ← ADD THIS
+const dbConnect = require('../config/database');
 const auth = require('../middleware/auth');
 
-// ==========================================
 // Generate JWT Token
-// ==========================================
 function generateToken(admin) {
   return jwt.sign(
     {
@@ -17,19 +14,15 @@ function generateToken(admin) {
       email: admin.email,
       role: admin.role
     },
-    process.env.JWT_SECRET || 'your-secret-key-change-this',
-    { 
-      expiresIn: '1d'
-    }
+    process.env.JWT_SECRET,
+    { expiresIn: '1d' }
   );
 }
 
-// ==========================================
 // ADMIN LOGIN
-// ==========================================
 router.post('/login', async (req, res) => {
   try {
-    await dbConnect();                    // ← ADD THIS
+    await dbConnect();
 
     const { email, password } = req.body;
 
@@ -40,26 +33,14 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    console.log('Looking for admin with email:', email.toLowerCase().trim());
-
-    const admin = await Admin.findOne({
-      email: email.toLowerCase().trim()
+    const admin = await Admin.findOne({ 
+      email: email.toLowerCase().trim() 
     });
 
-    if (!admin) {
-      console.log('Admin not found');
+    if (!admin || !admin.isActive) {
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
-      });
-    }
-
-    console.log('Admin found:', admin.email);
-
-    if (!admin.isActive) {
-      return res.status(403).json({
-        success: false,
-        message: 'Account has been disabled'
       });
     }
 
@@ -74,7 +55,7 @@ router.post('/login', async (req, res) => {
 
     const token = generateToken(admin);
 
-    return res.json({
+    res.json({
       success: true,
       message: 'Login successful',
       data: {
@@ -90,38 +71,31 @@ router.post('/login', async (req, res) => {
 
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// ==========================================
 // DEMO LOGIN
-// ==========================================
 router.post('/demo-login', async (req, res) => {
   try {
-    await dbConnect();                    // ← ADD THIS
+    await dbConnect();
 
-    const demoEmail = process.env.DEMO_EMAIL || 'demo@eyecare.com';
-    console.log('Looking for demo with email:', demoEmail);
+    const demoEmail = process.env.DEMO_EMAIL || 'demo@haiderdental.com';
 
-    const demo = await Admin.findOne({
-      email: demoEmail.toLowerCase().trim()
+    const demo = await Admin.findOne({ 
+      email: demoEmail.toLowerCase().trim() 
     });
 
     if (!demo) {
-      console.log('Demo account not found');
       return res.status(404).json({
         success: false,
-        message: 'Demo account not found. Please run the seed script.'
+        message: 'Demo account not found'
       });
     }
 
     const token = generateToken(demo);
 
-    return res.json({
+    res.json({
       success: true,
       message: 'Demo login successful',
       demo: true,
@@ -137,70 +111,23 @@ router.post('/demo-login', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Demo login error:', err);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// ==========================================
-// CURRENT USER
-// ==========================================
+// Get Current Logged-in User
 router.get('/me', auth, async (req, res) => {
   try {
-    await dbConnect();                    // ← ADD THIS
-
+    await dbConnect();
     const admin = await Admin.findById(req.user.id).select('-password');
 
     if (!admin) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    res.json({
-      success: true,
-      data: admin
-    });
-
+    res.json({ success: true, data: admin });
   } catch (err) {
-    console.error('Get user error:', err);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-});
-
-// ==========================================
-// TEST ENDPOINT
-// ==========================================
-router.get('/test', async (req, res) => {
-  try {
-    await dbConnect();                    // ← ADD THIS
-
-    const count = await Admin.countDocuments();
-    const admins = await Admin.find().select('-password');
-    
-    res.json({
-      success: true,
-      modelLoaded: typeof Admin === 'function',
-      count: count,
-      admins: admins.map(a => ({
-        name: a.name,
-        email: a.email,
-        role: a.role
-      }))
-    });
-  } catch (err) {
-    console.error('Test error:', err);
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 

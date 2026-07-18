@@ -1,40 +1,40 @@
 const mongoose = require('mongoose');
 
 const serviceSchema = new mongoose.Schema({
-  name: { 
-    type: String, 
-    required: true, 
-    unique: true,
-    trim: true 
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+    unique: true
   },
-  description: { 
-    type: String, 
-    default: '' 
+  description: {
+    type: String,
+    required: true,
+    trim: true
   },
-  duration: { 
-    type: Number, 
-    required: true, 
-    min: 1 
+  duration: {
+    type: Number,
+    min: 10
   },
-  icon: { 
-    type: String, 
-    default: '📋' 
+  icon: {
+    type: String,
+    default: '🦷'
   },
-  iconClass: { 
-    type: String, 
-    default: '' 
+  iconClass: {
+    type: String,
+    default: 'fa-solid fa-tooth'
   },
-  isActive: { 
-    type: Boolean, 
-    default: true 
+  isActive: {
+    type: Boolean,
+    default: true
   },
-  createdAt: { 
-    type: Date, 
-    default: Date.now 
+  createdAt: {
+    type: Date,
+    default: Date.now
   },
-  updatedAt: { 
-    type: Date, 
-    default: Date.now 
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 });
 

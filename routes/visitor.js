@@ -1,50 +1,45 @@
 const express = require('express');
 const router = express.Router();
 const Visitor = require('../models/Visitor');
-const dbConnect = require('../config/database');
 
-// Record a visit
-router.post('/record', async (req, res) => {
+// Track daily visitors
+router.post('/track', async (req, res) => {
   try {
-    await dbConnect();
-
     const today = new Date().toISOString().split('T')[0];
 
     let visitor = await Visitor.findOne({ date: today });
 
     if (!visitor) {
-      visitor = new Visitor({ 
-        date: today, 
-        count: 1, 
-        totalVisits: 1 
-      });
+      visitor = new Visitor({ date: today, count: 1, totalVisits: 1 });
     } else {
       visitor.count += 1;
       visitor.totalVisits += 1;
     }
 
     await visitor.save();
-
-    res.json({ 
-      success: true, 
-      today: visitor.count,
-      total: visitor.totalVisits 
-    });
+    res.json({ success: true });
   } catch (err) {
-    console.error('Visitor record error:', err);
-    res.status(500).json({ error: 'Failed to record visit' });
+    console.error('Visitor tracking error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// Get stats (optional)
+// Get visitor stats (Admin only)
 router.get('/stats', async (req, res) => {
   try {
-    await dbConnect();
-    const stats = await Visitor.find().sort({ date: -1 });
-    res.json(stats);
+    const totalVisitors = await Visitor.aggregate([
+      { $group: { _id: null, total: { $sum: '$totalVisits' } } }
+    ]);
+
+    const today = new Date().toISOString().split('T')[0];
+    const todayVisitor = await Visitor.findOne({ date: today });
+
+    res.json({
+      totalVisitors: totalVisitors[0]?.total || 0,
+      todayVisitors: todayVisitor?.count || 0
+    });
   } catch (err) {
-    console.error('Visitor stats error:', err);
-    res.status(500).json({ error: 'Failed to fetch stats' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
