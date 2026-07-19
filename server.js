@@ -36,7 +36,7 @@ app.use('/api', limiter);
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-  : ['http://localhost:4200', 'https://your-frontend-domain.vercel.app'];
+  : ['http://localhost:4200', 'https://haider-dental-care.vercel.app/'];
 
 app.use(cors({
   origin: allowedOrigins,
