@@ -18,7 +18,6 @@ const serviceRoutes = require('./routes/services');
 const visitorRoutes = require('./routes/visitor');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // ====================== SECURITY ======================
 app.use(helmet());
@@ -28,20 +27,34 @@ app.use(express.urlencoded({ extended: true }));
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
 });
 
 app.use('/api', limiter);
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-  : ['http://localhost:4200', 'https://haider-dental-care.vercel.app/'];
+// ====================== CORS FIX ======================
+const allowedOrigins = [
+  'http://localhost:4200',
+  'http://localhost:4300',
+  'https://haider-dental-care.vercel.app',
+  'https://haider-dental-care.vercel.app',   // Add your frontend URL
+  process.env.FRONTEND_URL || ''
+].filter(Boolean);
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Handle preflight requests
+app.options('*', cors());
 
 // ====================== ROUTES ======================
 app.use('/api/auth', authRoutes);
@@ -53,27 +66,31 @@ app.use('/api/visitor', visitorRoutes);
 // Serve PDFs
 app.use('/pdfs', express.static(path.join(__dirname, 'public/pdfs')));
 
-// Health Check (Important for Vercel)
+// Health Check
 app.get('/api/health', async (req, res) => {
   try {
     await dbConnect();
     res.json({ status: 'OK', mongodb: 'Connected' });
   } catch (err) {
-    console.error('Health check failed:', err.message);
-    res.status(500).json({ status: 'Error', mongodb: err.message });
+    res.status(500).json({ status: 'Error', message: err.message });
   }
 });
 
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found' });
+// Root
+app.get('/', (req, res) => {
+  res.json({ message: 'Haider Dental Care Backend Running' });
 });
 
-// ====================== EXPORT FOR VERCEL ======================
+// 404
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.url}` });
+});
+
 module.exports = app;
 
-// Only listen in local development
+// Local Development
 if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
   const startServer = async () => {
     try {
       await dbConnect();
