@@ -5,26 +5,6 @@ const Availability = require('../models/Availability');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/role');
 
-const PDFDocument = require('pdfkit');
-const nodemailer = require('nodemailer');
-const fs = require('fs');
-const path = require('path');
-
-// PDF Directory
-const pdfDir = path.join(__dirname, '../public/pdfs');
-if (!fs.existsSync(pdfDir)) {
-  fs.mkdirSync(pdfDir, { recursive: true });
-}
-
-// Nodemailer
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
 // ====================== PUBLIC: Create Booking ======================
 router.post('/', async (req, res) => {
   try {
@@ -47,7 +27,10 @@ router.post('/', async (req, res) => {
     });
 
     if (count >= DAILY_LIMIT) {
-      return res.status(400).json({ success: false, message: `Only ${DAILY_LIMIT} appointments available for this day.` });
+      return res.status(400).json({ 
+        success: false, 
+        message: `Only ${DAILY_LIMIT} appointments available for this day.` 
+      });
     }
 
     // Duplicate check
@@ -58,7 +41,10 @@ router.post('/', async (req, res) => {
     });
 
     if (existing) {
-      return res.status(409).json({ success: false, message: 'You already have an active appointment.' });
+      return res.status(409).json({ 
+        success: false, 
+        message: 'You already have an active appointment.' 
+      });
     }
 
     const bookingId = `HD-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${String(Math.floor(10000 + Math.random() * 90000))}`;
@@ -78,10 +64,6 @@ router.post('/', async (req, res) => {
 
     await booking.save();
 
-    // Generate PDF & Send Email
-    const pdfPath = await generateBookingPDF(booking);
-    await sendBookingEmail(booking, pdfPath);
-
     res.status(201).json({
       success: true,
       message: 'Appointment booked successfully!',
@@ -94,54 +76,6 @@ router.post('/', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
-// ====================== PDF & EMAIL HELPERS ======================
-async function generateBookingPDF(booking) {
-  return new Promise((resolve, reject) => {
-    const pdfPath = path.join(pdfDir, `${booking.bookingId}.pdf`);
-    const doc = new PDFDocument({ margin: 50 });
-    const stream = fs.createWriteStream(pdfPath);
-
-    doc.pipe(stream);
-
-    doc.fontSize(20).text('Haider Dental Care', { align: 'center' });
-    doc.fontSize(16).text('Appointment Confirmation', { align: 'center' });
-    doc.moveDown(2);
-
-    doc.fontSize(12);
-    doc.text(`Booking ID: ${booking.bookingId}`);
-    doc.text(`Date: ${booking.date.toLocaleDateString('en-IN')}`);
-    doc.text(`Service: ${booking.service.name}`);
-    doc.moveDown();
-
-    doc.text(`Patient: ${booking.patient.name}`);
-    doc.text(`Phone: ${booking.patient.phone}`);
-    doc.text(`Email: ${booking.patient.email}`);
-
-    doc.moveDown();
-    doc.text('Status: Pending', { color: 'orange' });
-
-    doc.end();
-    stream.on('finish', () => resolve(pdfPath));
-    stream.on('error', reject);
-  });
-}
-
-async function sendBookingEmail(booking, pdfPath) {
-  const mailOptions = {
-    from: `"Haider Dental Care" <${process.env.EMAIL_USER}>`,
-    to: booking.patient.email,
-    subject: `Appointment Confirmation - ${booking.bookingId}`,
-    html: `<h2>Thank you ${booking.patient.name}!</h2><p>Your appointment is booked.</p>`,
-    attachments: [{ filename: `${booking.bookingId}.pdf`, path: pdfPath }]
-  };
-
-  try {
-    await transporter.sendMail(mailOptions);
-  } catch (e) {
-    console.error('Email failed:', e);
-  }
-}
 
 // ====================== ADMIN ROUTES ======================
 
@@ -166,8 +100,7 @@ router.get('/:id', auth, authorize('admin'), async (req, res) => {
   }
 });
 
-// Update Status
-// Update Status
+// Update Status + WhatsApp Web Link
 router.patch('/:id/status', auth, authorize('admin'), async (req, res) => {
   try {
     const { status, cancellationReason } = req.body;
@@ -180,32 +113,48 @@ router.patch('/:id/status', auth, authorize('admin'), async (req, res) => {
 
     await booking.save();
 
-    // ---------- Send Email on Confirmation ----------
+    let whatsappLink = null;
     if (status === 'confirmed') {
-      await sendConfirmationEmail(booking);
+      whatsappLink = getWhatsAppLink(booking);
     }
 
-    res.json({ success: true, booking });
+    res.json({ 
+      success: true, 
+      booking,
+      whatsappLink 
+    });
+
   } catch (err) {
     console.error('Status update error:', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// Update Booking (Reschedule)
+// Reschedule + WhatsApp Web Link
 router.patch('/:id', auth, authorize('admin'), async (req, res) => {
   try {
-    const { date, time } = req.body;
+    const { date } = req.body;
     const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
 
     booking.date = new Date(date);
-    if (time) booking.time = time;
     booking.status = 'rescheduled';
 
     await booking.save();
-    res.json({ success: true, booking });
+
+    const whatsappLink = getWhatsAppLink(booking, true); // isReschedule = true
+
+    res.json({
+      success: true,
+      booking,
+      whatsappLink
+    });
+
   } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -235,5 +184,33 @@ router.delete('/:id', auth, authorize('admin'), async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
+// ====================== HELPER - WhatsApp Web Link ======================
+function getWhatsAppLink(booking, isReschedule = false) {
+  let message = '';
+
+  if (isReschedule) {
+    message = `Hello ${booking.patient.name},%0A%0A` +
+              `Your appointment has been *rescheduled*.%0A%0A` +
+              `Booking ID: ${booking.bookingId}%0A` +
+              `New Date: ${booking.date.toLocaleDateString('en-IN')}%0A` +
+              `Service: ${booking.service.name}%0A%0A` +
+              `Haider Dental Care`;
+  } else {
+    message = `Hello ${booking.patient.name},%0A%0A` +
+              `Your appointment has been *confirmed*.%0A%0A` +
+              `Booking ID: ${booking.bookingId}%0A` +
+              `Date: ${booking.date.toLocaleDateString('en-IN')}%0A` +
+              `Service: ${booking.service.name}%0A%0A` +
+              `Please arrive 10 minutes early.%0A%0A` +
+              `Haider Dental Care`;
+  }
+
+  // Clean phone number
+  let phone = booking.patient.phone.replace(/\D/g, '');
+  if (phone.length === 10) phone = '91' + phone;
+
+  return `https://wa.me/${phone}?text=${message}`;
+}
 
 module.exports = router;

@@ -36,7 +36,7 @@ const allowedOrigins = [
   'http://localhost:4200',
   'http://localhost:4300',
   'https://haider-dental-care.vercel.app',
-  'https://haider-dental-care.vercel.app',   // Add your frontend URL
+  'https://haider-dental-care.vercel.app/',   // Add your frontend URL
   process.env.FRONTEND_URL || ''
 ].filter(Boolean);
 
